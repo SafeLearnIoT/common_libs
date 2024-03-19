@@ -1,0 +1,11 @@
+{
+    "name": "CommunicationLibrary",
+    "version": "1.0.0",
+    "description": "Used to communicate between gateway and SafeIot devices",
+    "keywords": "wifi, mqtt, communication",
+    "frameworks": "*",
+    "platforms": "*",
+    "dependencies": {
+        "256dpi/MQTT": "~2.5.2"
+    }
+}
