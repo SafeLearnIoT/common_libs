@@ -7,28 +7,45 @@
 #include "WiFi.h"
 #endif
 
+#include <Arduino.h>
+#include "time.h"
 #include "MQTT.h"
 
 class Communication
 {
+protected:
+    Communication(const String &wifi_ssid, const String &wifi_password, const String &client_id, const String &mqtt_host, const int mqtt_port, MQTTClientCallbackSimple callback) : m_wifi_ssid(wifi_ssid), m_wifi_password(wifi_password), m_client_id(client_id), m_mqtt_host(mqtt_host), m_mqtt_port(mqtt_port), m_callback(callback) {}
+    static Communication *communication_;
+
     String m_wifi_ssid = "";
     String m_wifi_password = "";
     String m_client_id = "";
     String m_mqtt_host = "";
-
-    MQTTClientCallbackSimple m_callback = nullptr;
     int m_mqtt_port = 1883;
+    MQTTClientCallbackSimple m_callback = nullptr;
+
+    const char *ntpServer = "pool.ntp.org";
+    const long gmtOffset_sec = 3600;  // Replace with your GMT offset (seconds)
+    const int daylightOffset_sec = 0; // Replace with your daylight offset (seconds)
 
     MQTTClient m_mqtt_client;
     WiFiClient m_wifi_client;
 
+    tm *get_time();
     void connect();
 
 public:
-    Communication(const String &wifi_ssid, const String &wifi_password, const String &client_id, const String &mqtt_host, const int mqtt_port, MQTTClientCallbackSimple callback) : m_wifi_ssid(wifi_ssid), m_wifi_password(wifi_password), m_client_id(client_id), m_mqtt_host(mqtt_host), m_mqtt_port(mqtt_port), m_callback(callback) {}
+    Communication(Communication &other) = delete;
+    void operator=(const Communication &) = delete;
+    static Communication *get_instance(const String &wifi_ssid, const String &wifi_password, const String &client_id, const String &mqtt_host, const int mqtt_port, MQTTClientCallbackSimple callback);
+    static Communication *get_instance();
+
     void setup();
     void publish(String topic, String payload);
     void handle_mqtt_loop();
+
+    String get_datetime_string();
+    time_t get_rawtime();
 };
 
 #endif

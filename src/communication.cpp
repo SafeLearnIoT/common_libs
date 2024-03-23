@@ -1,5 +1,21 @@
 #include "communication.h"
 
+Communication *Communication::communication_ = nullptr;
+
+Communication *Communication::get_instance(const String &wifi_ssid, const String &wifi_password, const String &client_id, const String &mqtt_host, const int mqtt_port, MQTTClientCallbackSimple callback)
+{
+    if (communication_ == nullptr)
+    {
+        communication_ = new Communication(wifi_ssid, wifi_password, client_id, mqtt_host, mqtt_port, callback);
+    }
+    return communication_;
+}
+
+Communication *Communication::get_instance()
+{
+    return communication_;
+}
+
 void Communication::setup()
 {
     // Check params
@@ -32,6 +48,8 @@ void Communication::setup()
     WiFi.begin(m_wifi_ssid.c_str(), m_wifi_password.c_str());
     m_mqtt_client.begin(m_mqtt_host.c_str(), m_mqtt_port, m_wifi_client);
     m_mqtt_client.onMessage(m_callback);
+
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 }
 
 void Communication::connect()
@@ -51,6 +69,8 @@ void Communication::connect()
     }
 
     Serial.println("\nconnected!");
+
+    m_mqtt_client.subscribe(m_client_id + "in/#");
 }
 
 void Communication::publish(String topic, String payload)
@@ -67,4 +87,19 @@ void Communication::handle_mqtt_loop()
     {
         connect();
     }
+}
+
+time_t Communication::get_rawtime()
+{
+    time_t rawtime;
+    return time(&rawtime);
+}
+
+String Communication::get_datetime_string()
+{
+    auto raw_time = get_rawtime();
+    auto local_time = localtime(&raw_time);
+    char buff[200];
+    strftime(buff, 200, "%Y-%m-%d %H:%M:%S", local_time);
+    return buff;
 }
