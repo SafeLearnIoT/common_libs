@@ -25,7 +25,7 @@ protected:
     MQTTClientCallbackSimple m_callback = nullptr;
 
     const char *ntpServer = "pool.ntp.org";
-    const long gmtOffset_sec = 3600;  // Replace with your GMT offset (seconds)
+    const long gmtOffset_sec = 7200;  // Replace with your GMT offset (seconds)
     const int daylightOffset_sec = 0; // Replace with your daylight offset (seconds)
 
     MQTTClient m_mqtt_client;
@@ -45,7 +45,11 @@ public:
     void handle_mqtt_loop();
 
     String get_datetime_string();
+    String get_todays_date_string();
+    String get_yesterdays_date_string();
+    bool is_older_than_five_days(String file_name);
     time_t get_rawtime();
+    tm *get_localtime();
 };
 
 #endif

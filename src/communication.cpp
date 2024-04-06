@@ -71,11 +71,12 @@ void Communication::connect()
     Serial.println("\nconnected!");
 
     m_mqtt_client.subscribe(m_client_id + "in/#");
+    publish("healthz", "ok - setup");
 }
 
 void Communication::publish(String topic, String payload)
 {
-    m_mqtt_client.publish(m_client_id + topic, payload.c_str());
+    m_mqtt_client.publish(m_client_id + topic, payload.c_str(), true, 2);
 }
 
 void Communication::handle_mqtt_loop()
@@ -95,11 +96,55 @@ time_t Communication::get_rawtime()
     return time(&rawtime);
 }
 
+tm *Communication::get_localtime()
+{
+    auto raw_time = get_rawtime();
+    return localtime(&raw_time);
+}
+
 String Communication::get_datetime_string()
 {
     auto raw_time = get_rawtime();
     auto local_time = localtime(&raw_time);
     char buff[200];
-    strftime(buff, 200, "%Y-%m-%d %H:%M:%S", local_time);
+    strftime(buff, 200, "%Y-%m-%d_%H_%M_%S", local_time);
     return buff;
+}
+
+String Communication::get_todays_date_string()
+{
+    auto raw_time = get_rawtime();
+    auto local_time = localtime(&raw_time);
+    char buff[200];
+    strftime(buff, 200, "%Y_%m_%d", local_time);
+    return buff;
+}
+
+String Communication::get_yesterdays_date_string()
+{
+    auto raw_time = get_rawtime();
+    auto local_time = localtime(&raw_time);
+    local_time->tm_mday -= 1;
+    mktime(local_time);
+    char buff[200];
+    strftime(buff, 200, "%Y_%m_%d", local_time);
+    return buff;
+}
+
+bool Communication::is_older_than_five_days(String file_name)
+{
+    int file_year = file_name.substring(0, 4).toInt();
+    int file_month = file_name.substring(5, 7).toInt();
+    int file_day = file_name.substring(8, 10).toInt();
+
+    struct tm fileTime = {0};
+    fileTime.tm_year = file_year - 1900; // tm_year is years since 1900
+    fileTime.tm_mon = file_month - 1;    // tm_mon is 0-based
+    fileTime.tm_mday = file_day;
+
+    time_t fileEpoch = mktime(&fileTime); // Convert to time_t (seconds since Epoch)
+
+    double diff = difftime(get_rawtime(), fileEpoch) / (60 * 60 * 24);
+
+    return diff > 5;
 }
