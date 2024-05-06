@@ -48,8 +48,63 @@ void Communication::setup()
     WiFi.begin(m_wifi_ssid.c_str(), m_wifi_password.c_str());
     m_mqtt_client.begin(m_mqtt_host.c_str(), m_mqtt_port, m_wifi_client);
     m_mqtt_client.onMessage(m_callback);
-
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+    connect();
+}
+
+void Communication::pause_communication()
+{
+    // Optional: publish a going-offline message
+    auto msg = String("going offline;");
+    msg += String(millis());
+    publish("status", msg);
+
+    delay(5000);
+
+    // Disconnect the MQTT client
+    if (m_mqtt_client.connected())
+    {
+        m_mqtt_client.disconnect();
+    }
+
+    delay(5000);
+
+    // Turn off the WiFi
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+
+    Serial.println("Communication paused.");
+}
+
+void Communication::resume_communication()
+{
+    // Turn on WiFi
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(m_wifi_ssid.c_str(), m_wifi_password.c_str());
+
+    // Wait for WiFi connection
+    Serial.print("Reconnecting WiFi");
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        delay(1000);
+        Serial.print(".");
+    }
+
+    delay(5000);
+
+    // Reconnect MQTT client
+    if (!m_mqtt_client.connected())
+    {
+        connect();
+    }
+
+    // Optional: publish a back-online message
+    auto msg = String("back online;");
+    msg += String(millis());
+    publish("status", msg);
+
+    Serial.println("Communication resumed.");
 }
 
 void Communication::connect()
@@ -69,24 +124,31 @@ void Communication::connect()
     }
 
     Serial.println("\nconnected!");
-
-    m_mqtt_client.subscribe(m_client_id + "in/#");
-    publish("healthz", "ok - setup");
+    if (m_setup)
+    {
+        auto msg = String("setup done;");
+        msg += String(millis());
+        publish("status", msg);
+        m_setup = false;
+    }
 }
 
 void Communication::publish(String topic, String payload)
 {
-    m_mqtt_client.publish(m_client_id + topic, payload.c_str(), true, 2);
+    m_mqtt_client.publish(m_client_id + topic, payload.c_str(), false, 2);
 }
 
 void Communication::handle_mqtt_loop()
 {
-    m_mqtt_client.loop();
-    delay(10);
-
-    if (!m_mqtt_client.connected())
+    if (!WiFi.getSleep())
     {
-        connect();
+        m_mqtt_client.loop();
+        delay(10);
+
+        if (!m_mqtt_client.connected())
+        {
+            connect();
+        }
     }
 }
 
@@ -148,3 +210,7 @@ bool Communication::is_older_than_five_days(String file_name)
 
     return diff > 5;
 }
+
+// This is my communication class methods
+// How to implement pause_communication and resume_communication?
+// I want to have system that turns off communication via mqtt and wifi and enables it when needed

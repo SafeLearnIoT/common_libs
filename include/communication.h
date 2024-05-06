@@ -22,6 +22,7 @@ protected:
     String m_client_id = "";
     String m_mqtt_host = "";
     int m_mqtt_port = 1883;
+    bool m_setup = true;
     MQTTClientCallbackSimple m_callback = nullptr;
 
     const char *ntpServer = "pool.ntp.org";
@@ -41,6 +42,8 @@ public:
     static Communication *get_instance();
 
     void setup();
+    void pause_communication();
+    void resume_communication();
     void publish(String topic, String payload);
     void handle_mqtt_loop();
 
