@@ -2,7 +2,13 @@
 
 Communication *Communication::communication_ = nullptr;
 
-Communication *Communication::get_instance(const String &wifi_ssid, const String &wifi_password, const String &client_id, const String &mqtt_host, const int mqtt_port, MQTTClientCallbackSimple callback)
+Communication *Communication::get_instance(
+    const String &wifi_ssid,
+    const String &wifi_password,
+    const String &client_id,
+    const String &mqtt_host,
+    const int mqtt_port,
+    MQTTClientCallbackSimple callback)
 {
     if (communication_ == nullptr)
     {
@@ -56,8 +62,13 @@ void Communication::setup()
 void Communication::pause_communication()
 {
     // Optional: publish a going-offline message
-    auto msg = String("going offline;");
-    msg += String(millis());
+    JsonDocument status_info;
+    status_info["time"] = millis();
+    status_info["device"] = m_client_id;
+    status_info["status"] = "going offline";
+
+    String msg;
+    serializeJson(status_info, msg);
     publish("status", msg);
 
     delay(5000);
@@ -100,8 +111,13 @@ void Communication::resume_communication()
     }
 
     // Optional: publish a back-online message
-    auto msg = String("back online;");
-    msg += String(millis());
+    JsonDocument status_info;
+    status_info["time"] = millis();
+    status_info["device"] = m_client_id;
+    status_info["status"] = "back online";
+
+    String msg;
+    serializeJson(status_info, msg);
     publish("status", msg);
 
     Serial.println("Communication resumed.");
@@ -126,8 +142,13 @@ void Communication::connect()
     Serial.println("\nconnected!");
     if (m_setup)
     {
-        auto msg = String("setup done;");
-        msg += String(millis());
+        JsonDocument status_info;
+        status_info["time"] = millis();
+        status_info["device"] = m_client_id;
+        status_info["status"] = "setup done";
+
+        String msg;
+        serializeJson(status_info, msg);
         publish("status", msg);
         m_setup = false;
     }
@@ -135,7 +156,7 @@ void Communication::connect()
 
 void Communication::publish(String topic, String payload)
 {
-    m_mqtt_client.publish(m_client_id + topic, payload.c_str(), false, 2);
+    m_mqtt_client.publish(topic + '/' + m_client_id, payload.c_str(), false, 2);
 }
 
 void Communication::handle_mqtt_loop()
@@ -193,24 +214,35 @@ String Communication::get_yesterdays_date_string()
     return buff;
 }
 
-bool Communication::is_older_than_five_days(String file_name)
+String Communication::get_client_id()
 {
-    int file_year = file_name.substring(0, 4).toInt();
-    int file_month = file_name.substring(5, 7).toInt();
-    int file_day = file_name.substring(8, 10).toInt();
-
-    struct tm fileTime = {0};
-    fileTime.tm_year = file_year - 1900; // tm_year is years since 1900
-    fileTime.tm_mon = file_month - 1;    // tm_mon is 0-based
-    fileTime.tm_mday = file_day;
-
-    time_t fileEpoch = mktime(&fileTime); // Convert to time_t (seconds since Epoch)
-
-    double diff = difftime(get_rawtime(), fileEpoch) / (60 * 60 * 24);
-
-    return diff > 5;
+    return m_client_id;
 }
 
-// This is my communication class methods
-// How to implement pause_communication and resume_communication?
-// I want to have system that turns off communication via mqtt and wifi and enables it when needed
+void Communication::send_data(JsonDocument sensor_data, JsonDocument rtpnn_data, JsonDocument reglin_data)
+{
+    resume_communication();
+
+    if (!sensor_data.isNull())
+    {
+        String sensor_data_string;
+        serializeJson(sensor_data, sensor_data_string);
+        publish("data", sensor_data_string);
+    }
+
+    if (!rtpnn_data.isNull())
+    {
+        String rtpnn_data_string;
+        serializeJson(rtpnn_data, rtpnn_data_string);
+        publish("ml", rtpnn_data_string);
+    }
+
+    if (!reglin_data.isNull())
+    {
+        String reglin_data_string;
+        serializeJson(reglin_data, reglin_data_string);
+        publish("ml", reglin_data_string);
+    }
+
+    pause_communication();
+}

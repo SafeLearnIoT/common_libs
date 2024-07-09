@@ -6,6 +6,7 @@
     "frameworks": "*",
     "platforms": "*",
     "dependencies": {
-        "256dpi/MQTT": "~2.5.2"
+        "256dpi/MQTT": "~2.5.2",
+        "bblanchon/ArduinoJson": "~7.1.0"
     }
 }
