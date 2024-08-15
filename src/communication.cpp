@@ -1,6 +1,6 @@
 #include "communication.h"
 
-Communication *Communication::communication_ = nullptr;
+Communication *Communication::m_communication = nullptr;
 
 Communication *Communication::get_instance(
     const String &wifi_ssid,
@@ -10,16 +10,16 @@ Communication *Communication::get_instance(
     const int mqtt_port,
     MQTTClientCallbackSimple callback)
 {
-    if (communication_ == nullptr)
+    if (m_communication == nullptr)
     {
-        communication_ = new Communication(wifi_ssid, wifi_password, client_id, mqtt_host, mqtt_port, callback);
+        m_communication = new Communication(wifi_ssid, wifi_password, client_id, mqtt_host, mqtt_port, callback);
     }
-    return communication_;
+    return m_communication;
 }
 
 Communication *Communication::get_instance()
 {
-    return communication_;
+    return m_communication;
 }
 
 void Communication::setup()
@@ -54,7 +54,7 @@ void Communication::setup()
     WiFi.begin(m_wifi_ssid.c_str(), m_wifi_password.c_str());
     m_mqtt_client.begin(m_mqtt_host.c_str(), m_mqtt_port, m_wifi_client);
     m_mqtt_client.onMessage(m_callback);
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    configTime(m_gmt_offset_sec, m_daylight_offset_sec, m_ntp_server);
 
     connect();
 }
@@ -156,7 +156,11 @@ void Communication::connect()
 
 void Communication::publish(String topic, String payload)
 {
+#ifndef NO_PUBLISH
     m_mqtt_client.publish(topic + '/' + m_client_id, payload.c_str(), false, 2);
+#endif
+    Serial.print("Pub attempt on topic: ");
+    Serial.println(topic);
 }
 
 void Communication::handle_mqtt_loop()
@@ -219,9 +223,11 @@ String Communication::get_client_id()
     return m_client_id;
 }
 
-void Communication::send_data(JsonDocument sensor_data, JsonDocument rtpnn_data, JsonDocument reglin_data)
+void Communication::send_data(JsonDocument sensor_data, JsonDocument ml_data)
 {
+#ifndef NO_PUBLISH
     resume_communication();
+#endif
 
     if (!sensor_data.isNull())
     {
@@ -230,19 +236,18 @@ void Communication::send_data(JsonDocument sensor_data, JsonDocument rtpnn_data,
         publish("data", sensor_data_string);
     }
 
-    if (!rtpnn_data.isNull())
+    if (!ml_data.isNull())
     {
-        String rtpnn_data_string;
-        serializeJson(rtpnn_data, rtpnn_data_string);
-        publish("ml", rtpnn_data_string);
+        String ml_data_string;
+        serializeJson(ml_data, ml_data_string);
+        publish("ml", ml_data_string);
     }
-
-    if (!reglin_data.isNull())
-    {
-        String reglin_data_string;
-        serializeJson(reglin_data, reglin_data_string);
-        publish("ml", reglin_data_string);
-    }
-
+#ifndef NO_PUBLISH
     pause_communication();
+#endif
+}
+
+MLAlgo Communication::get_ml_algo()
+{
+    return m_ml_algo;
 }
