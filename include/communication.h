@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-#define NO_PUBLISH
+// #define NO_PUBLISH
 
 enum MLAlgo
 {
