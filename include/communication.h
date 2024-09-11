@@ -14,17 +14,8 @@
 #include <utility>
 #include <vector>
 
-// #define NO_PUBLISH
-
-enum MLAlgo
-{
-    None,
-    rTPNN,
-    LinReg,
-    LogReg
-};
-
-inline auto ml_algo = MLAlgo::LinReg;
+#define NO_MQTT
+#define OFFLINE
 
 class Communication
 {
@@ -35,7 +26,6 @@ protected:
     String m_mqtt_host = "";
     int m_mqtt_port = 1883;
     bool m_setup = true;
-    MLAlgo m_ml_algo = ml_algo;
     MQTTClientCallbackSimple m_callback = nullptr;
 
     Communication(
@@ -90,8 +80,6 @@ public:
     String get_client_id();
     time_t get_rawtime();
     tm *get_localtime();
-
-    MLAlgo get_ml_algo();
 };
 
 #endif

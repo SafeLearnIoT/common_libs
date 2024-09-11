@@ -52,8 +52,10 @@ void Communication::setup()
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(m_wifi_ssid.c_str(), m_wifi_password.c_str());
+#ifndef NO_MQTT
     m_mqtt_client.begin(m_mqtt_host.c_str(), m_mqtt_port, m_wifi_client);
     m_mqtt_client.onMessage(m_callback);
+#endif
     configTime(m_gmt_offset_sec, m_daylight_offset_sec, m_ntp_server);
 
     connect();
@@ -71,16 +73,14 @@ void Communication::pause_communication()
     serializeJson(status_info, msg);
     publish("status", msg);
 
-    delay(5000);
-
+    delay(2000);
     // Disconnect the MQTT client
     if (m_mqtt_client.connected())
     {
         m_mqtt_client.disconnect();
     }
 
-    delay(5000);
-
+    delay(2000);
     // Turn off the WiFi
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
@@ -90,6 +90,9 @@ void Communication::pause_communication()
 
 void Communication::resume_communication()
 {
+#ifdef OFFLINE
+    return;
+#endif
     // Turn on WiFi
     WiFi.mode(WIFI_STA);
     WiFi.begin(m_wifi_ssid.c_str(), m_wifi_password.c_str());
@@ -104,11 +107,13 @@ void Communication::resume_communication()
 
     delay(5000);
 
+#ifndef NO_MQTT
     // Reconnect MQTT client
     if (!m_mqtt_client.connected())
     {
         connect();
     }
+#endif
 
     // Optional: publish a back-online message
     JsonDocument status_info;
@@ -132,12 +137,14 @@ void Communication::connect()
         delay(1000);
     }
 
+#ifndef NO_MQTT
     Serial.print("\nconnecting...");
     while (!m_mqtt_client.connect(m_client_id.c_str()))
     {
         Serial.print(".");
         delay(1000);
     }
+#endif
 
     Serial.println("\nconnected!");
     if (m_setup)
@@ -156,7 +163,7 @@ void Communication::connect()
 
 void Communication::publish(String topic, String payload)
 {
-#ifndef NO_PUBLISH
+#ifndef NO_MQTT
     m_mqtt_client.publish(topic + '/' + m_client_id, payload.c_str(), false, 2);
 #endif
     Serial.print("Pub attempt on topic: ");
@@ -165,6 +172,9 @@ void Communication::publish(String topic, String payload)
 
 void Communication::handle_mqtt_loop()
 {
+#ifdef NO_MQTT
+    return;
+#endif
     if (!WiFi.getSleep())
     {
         m_mqtt_client.loop();
@@ -225,7 +235,7 @@ String Communication::get_client_id()
 
 void Communication::send_data(JsonDocument sensor_data, JsonDocument ml_data)
 {
-#ifndef NO_PUBLISH
+#ifndef NO_MQTT
     resume_communication();
 #endif
 
@@ -242,12 +252,7 @@ void Communication::send_data(JsonDocument sensor_data, JsonDocument ml_data)
         serializeJson(ml_data, ml_data_string);
         publish("ml", ml_data_string);
     }
-#ifndef NO_PUBLISH
+#ifndef NO_MQTT
     pause_communication();
 #endif
-}
-
-MLAlgo Communication::get_ml_algo()
-{
-    return m_ml_algo;
 }
