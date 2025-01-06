@@ -14,8 +14,8 @@
 #include <utility>
 #include <vector>
 
-#define NO_MQTT
-#define OFFLINE
+// #define NO_MQTT
+// #define OFFLINE
 
 class Communication
 {
@@ -26,6 +26,7 @@ protected:
     String m_mqtt_host = "";
     int m_mqtt_port = 1883;
     bool m_setup = true;
+    unsigned long m_connection_time = 0;
     MQTTClientCallbackSimple m_callback = nullptr;
 
     Communication(

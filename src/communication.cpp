@@ -52,10 +52,9 @@ void Communication::setup()
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(m_wifi_ssid.c_str(), m_wifi_password.c_str());
-#ifndef NO_MQTT
     m_mqtt_client.begin(m_mqtt_host.c_str(), m_mqtt_port, m_wifi_client);
     m_mqtt_client.onMessage(m_callback);
-#endif
+
     configTime(m_gmt_offset_sec, m_daylight_offset_sec, m_ntp_server);
 
     connect();
@@ -63,9 +62,13 @@ void Communication::setup()
 
 void Communication::pause_communication()
 {
-    // Optional: publish a going-offline message
     JsonDocument status_info;
-    status_info["time"] = millis();
+
+    auto raw_time = get_rawtime();
+    auto time_struct = localtime(&raw_time);
+    status_info["time_sent"] = raw_time;
+
+    status_info["active_time"] = millis();
     status_info["device"] = m_client_id;
     status_info["status"] = "going offline";
 
@@ -73,15 +76,13 @@ void Communication::pause_communication()
     serializeJson(status_info, msg);
     publish("status", msg);
 
-    delay(2000);
-    // Disconnect the MQTT client
+    delay(1000);
     if (m_mqtt_client.connected())
     {
         m_mqtt_client.disconnect();
     }
 
-    delay(2000);
-    // Turn off the WiFi
+    delay(1000);
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
 
@@ -90,10 +91,6 @@ void Communication::pause_communication()
 
 void Communication::resume_communication()
 {
-#ifdef OFFLINE
-    return;
-#endif
-    // Turn on WiFi
     WiFi.mode(WIFI_STA);
     WiFi.begin(m_wifi_ssid.c_str(), m_wifi_password.c_str());
 
@@ -107,17 +104,20 @@ void Communication::resume_communication()
 
     delay(5000);
 
-#ifndef NO_MQTT
-    // Reconnect MQTT client
     if (!m_mqtt_client.connected())
     {
         connect();
     }
-#endif
 
-    // Optional: publish a back-online message
+    m_connection_time = millis();
+
     JsonDocument status_info;
-    status_info["time"] = millis();
+
+    auto raw_time = get_rawtime();
+    auto time_struct = localtime(&raw_time);
+    status_info["time_sent"] = raw_time;
+
+    status_info["active_time"] = millis();
     status_info["device"] = m_client_id;
     status_info["status"] = "back online";
 
@@ -137,20 +137,26 @@ void Communication::connect()
         delay(1000);
     }
 
-#ifndef NO_MQTT
     Serial.print("\nconnecting...");
     while (!m_mqtt_client.connect(m_client_id.c_str()))
     {
         Serial.print(".");
         delay(1000);
     }
-#endif
+
+    m_mqtt_client.subscribe("cmd/" + m_client_id);
 
     Serial.println("\nconnected!");
+
     if (m_setup)
     {
         JsonDocument status_info;
-        status_info["time"] = millis();
+
+        auto raw_time = get_rawtime();
+        auto time_struct = localtime(&raw_time);
+        status_info["time_sent"] = raw_time;
+
+        status_info["active_time"] = millis();
         status_info["device"] = m_client_id;
         status_info["status"] = "setup done";
 
@@ -163,27 +169,28 @@ void Communication::connect()
 
 void Communication::publish(String topic, String payload)
 {
-#ifndef NO_MQTT
     m_mqtt_client.publish(topic + '/' + m_client_id, payload.c_str(), false, 2);
-#endif
-    Serial.print("Pub attempt on topic: ");
-    Serial.println(topic);
+    Serial.println("[PUB][" + topic + "] " + payload);
 }
 
 void Communication::handle_mqtt_loop()
 {
-#ifdef NO_MQTT
-    return;
-#endif
-    if (!WiFi.getSleep())
+    if (WiFi.status() != WL_CONNECTED)
     {
-        m_mqtt_client.loop();
-        delay(10);
+        return;
+    }
 
-        if (!m_mqtt_client.connected())
-        {
-            connect();
-        }
+    m_mqtt_client.loop();
+    delay(10);
+
+    if (!m_mqtt_client.connected())
+    {
+        connect();
+    }
+
+    if (millis() - m_connection_time > 10000)
+    {
+        pause_communication();
     }
 }
 
@@ -235,10 +242,6 @@ String Communication::get_client_id()
 
 void Communication::send_data(JsonDocument sensor_data, JsonDocument ml_data)
 {
-#ifndef NO_MQTT
-    resume_communication();
-#endif
-
     if (!sensor_data.isNull())
     {
         String sensor_data_string;
@@ -252,7 +255,4 @@ void Communication::send_data(JsonDocument sensor_data, JsonDocument ml_data)
         serializeJson(ml_data, ml_data_string);
         publish("ml", ml_data_string);
     }
-#ifndef NO_MQTT
-    pause_communication();
-#endif
 }
