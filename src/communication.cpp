@@ -91,6 +91,10 @@ void Communication::pause_communication()
 
 void Communication::resume_communication()
 {
+    if(WiFi.status() == WL_CONNECTED){
+        return;
+    }
+
     WiFi.mode(WIFI_STA);
     WiFi.begin(m_wifi_ssid.c_str(), m_wifi_password.c_str());
 
@@ -126,6 +130,18 @@ void Communication::resume_communication()
     publish("status", msg);
 
     Serial.println("Communication resumed.");
+}
+
+void Communication::hold_connection()
+{
+    m_hold_connection = true;
+    Serial.println("Connection holded.");
+}
+
+void Communication::release_connection()
+{
+    m_hold_connection = false;
+    Serial.println("Connection released.");
 }
 
 void Communication::connect()
@@ -167,10 +183,10 @@ void Communication::connect()
     }
 }
 
-void Communication::publish(String topic, String payload)
+void Communication::publish(String topic, String payload, bool retain)
 {
-    m_mqtt_client.publish(topic + '/' + m_client_id, payload.c_str(), false, 2);
-    Serial.println("[PUB][" + topic + "] " + payload);
+    m_mqtt_client.publish(topic + '/' + m_client_id, payload.c_str(), retain, 2);
+    Serial.println("[PUB][" + topic + '/' + m_client_id + "] " + payload);
 }
 
 void Communication::handle_mqtt_loop()
@@ -188,7 +204,7 @@ void Communication::handle_mqtt_loop()
         connect();
     }
 
-    if (millis() - m_connection_time > 10000)
+    if (millis() - m_connection_time > 10000 && !m_hold_connection)
     {
         pause_communication();
     }
@@ -240,19 +256,12 @@ String Communication::get_client_id()
     return m_client_id;
 }
 
-void Communication::send_data(JsonDocument sensor_data, JsonDocument ml_data)
+void Communication::send_data(JsonDocument sensor_data)
 {
     if (!sensor_data.isNull())
     {
         String sensor_data_string;
         serializeJson(sensor_data, sensor_data_string);
         publish("data", sensor_data_string);
-    }
-
-    if (!ml_data.isNull())
-    {
-        String ml_data_string;
-        serializeJson(ml_data, ml_data_string);
-        publish("ml", ml_data_string);
     }
 }

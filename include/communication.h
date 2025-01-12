@@ -26,6 +26,7 @@ protected:
     String m_mqtt_host = "";
     int m_mqtt_port = 1883;
     bool m_setup = true;
+    bool m_hold_connection = false;
     unsigned long m_connection_time = 0;
     MQTTClientCallbackSimple m_callback = nullptr;
 
@@ -70,10 +71,12 @@ public:
     void setup();
     void pause_communication();
     void resume_communication();
-    void publish(String topic, String payload);
+    void hold_connection();
+    void release_connection();
+    void publish(String topic, String payload, bool retain=false);
     void handle_mqtt_loop();
 
-    void send_data(JsonDocument sensor_data, JsonDocument ml_data);
+    void send_data(JsonDocument sensor_data);
 
     String get_datetime_string();
     String get_todays_date_string();
