@@ -92,7 +92,7 @@ void Communication::pause_communication()
 void Communication::resume_communication()
 {
     if(WiFi.status() == WL_CONNECTED){
-        return;
+       return;
     }
 
     WiFi.mode(WIFI_STA);
@@ -123,7 +123,7 @@ void Communication::resume_communication()
 
     status_info["active_time"] = millis();
     status_info["device"] = m_client_id;
-    status_info["status"] = "back online";
+    status_info["status"] = "ping";
 
     String msg;
     serializeJson(status_info, msg);
@@ -160,7 +160,7 @@ void Communication::connect()
         delay(1000);
     }
 
-    m_mqtt_client.subscribe("cmd/" + m_client_id);
+    m_mqtt_client.subscribe("cmd_gateway/" + m_client_id);
 
     Serial.println("\nconnected!");
 
@@ -196,17 +196,18 @@ void Communication::handle_mqtt_loop()
         return;
     }
 
+    if (millis() - m_connection_time > 10000 && !m_hold_connection)
+    {
+        pause_communication();
+        return;
+    }
+
     m_mqtt_client.loop();
     delay(10);
 
     if (!m_mqtt_client.connected())
     {
         connect();
-    }
-
-    if (millis() - m_connection_time > 10000 && !m_hold_connection)
-    {
-        pause_communication();
     }
 }
 
@@ -263,5 +264,15 @@ void Communication::send_data(JsonDocument sensor_data)
         String sensor_data_string;
         serializeJson(sensor_data, sensor_data_string);
         publish("data", sensor_data_string);
+    }
+}
+
+void Communication::send_ml(JsonDocument ml_data)
+{
+    if (!ml_data.isNull())
+    {
+        String ml_data_string;
+        serializeJson(ml_data, ml_data_string);
+        publish("ml", ml_data_string);
     }
 }

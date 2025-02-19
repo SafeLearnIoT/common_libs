@@ -51,7 +51,7 @@ protected:
     const long m_gmt_offset_sec = 7200;  // Replace with your GMT offset (seconds)
     const int m_daylight_offset_sec = 0; // Replace with your daylight offset (seconds)
 
-    MQTTClient m_mqtt_client;
+    MQTTClient m_mqtt_client = MQTTClient(512);
     WiFiClient m_wifi_client;
 
     tm *get_time();
@@ -77,6 +77,7 @@ public:
     void handle_mqtt_loop();
 
     void send_data(JsonDocument sensor_data);
+    void send_ml(JsonDocument ml_data);
 
     String get_datetime_string();
     String get_todays_date_string();
