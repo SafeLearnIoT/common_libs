@@ -62,19 +62,11 @@ void Communication::setup()
 
 void Communication::pause_communication()
 {
-    JsonDocument status_info;
+    if(!m_configuration->getPeriodicConnection()){
+        return;
+    }
 
-    auto raw_time = get_rawtime();
-    auto time_struct = localtime(&raw_time);
-    status_info["time_sent"] = raw_time;
-
-    status_info["active_time"] = millis();
-    status_info["device"] = m_client_id;
-    status_info["status"] = "going offline";
-
-    String msg;
-    serializeJson(status_info, msg);
-    publish("status", msg);
+    send_status("going offline");
 
     delay(1000);
     if (m_mqtt_client.connected())
@@ -91,8 +83,14 @@ void Communication::pause_communication()
 
 void Communication::resume_communication()
 {
-    if(WiFi.status() == WL_CONNECTED){
-       return;
+    if(!m_configuration->getPeriodicConnection()){
+        send_status("ping");
+        return;
+    }
+
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        return;
     }
 
     WiFi.mode(WIFI_STA);
@@ -115,33 +113,27 @@ void Communication::resume_communication()
 
     m_connection_time = millis();
 
-    JsonDocument status_info;
-
-    auto raw_time = get_rawtime();
-    auto time_struct = localtime(&raw_time);
-    status_info["time_sent"] = raw_time;
-
-    status_info["active_time"] = millis();
-    status_info["device"] = m_client_id;
-    status_info["status"] = "ping";
-
-    String msg;
-    serializeJson(status_info, msg);
-    publish("status", msg);
+    send_status("back online");
 
     Serial.println("Communication resumed.");
 }
 
 void Communication::hold_connection()
 {
-    m_hold_connection = true;
-    Serial.println("Connection holded.");
+    if (m_configuration->getPeriodicConnection())
+    {
+        m_hold_connection = true;
+        Serial.println("Connection holded.");
+    }
 }
 
 void Communication::release_connection()
 {
-    m_hold_connection = false;
-    Serial.println("Connection released.");
+    if (m_configuration->getPeriodicConnection())
+    {
+        m_hold_connection = false;
+        Serial.println("Connection released.");
+    }
 }
 
 void Communication::connect()
@@ -160,27 +152,8 @@ void Communication::connect()
         delay(1000);
     }
 
-    m_mqtt_client.subscribe("cmd_gateway/" + m_client_id);
-
+    m_mqtt_client.subscribe("configuration");
     Serial.println("\nconnected!");
-
-    if (m_setup)
-    {
-        JsonDocument status_info;
-
-        auto raw_time = get_rawtime();
-        auto time_struct = localtime(&raw_time);
-        status_info["time_sent"] = raw_time;
-
-        status_info["active_time"] = millis();
-        status_info["device"] = m_client_id;
-        status_info["status"] = "setup done";
-
-        String msg;
-        serializeJson(status_info, msg);
-        publish("status", msg);
-        m_setup = false;
-    }
 }
 
 void Communication::publish(String topic, String payload, bool retain)
@@ -196,10 +169,13 @@ void Communication::handle_mqtt_loop()
         return;
     }
 
-    if (millis() - m_connection_time > 10000 && !m_hold_connection)
+    if (is_system_configured() && m_configuration->getPeriodicConnection())
     {
-        pause_communication();
-        return;
+        if (millis() - m_connection_time > 10000 && !m_hold_connection)
+        {
+            pause_communication();
+            return;
+        }
     }
 
     m_mqtt_client.loop();
@@ -208,6 +184,27 @@ void Communication::handle_mqtt_loop()
     if (!m_mqtt_client.connected())
     {
         connect();
+    }
+}
+
+void Communication::initConfig(String config)
+{
+    JsonDocument doc;
+    deserializeJson(doc, config);
+    m_configuration = std::make_unique<ConfigurationManager>(doc);
+    m_configuration->printStatus();
+
+    if(m_configuration->getRunMachineLearning()){
+        m_mqtt_client.subscribe("cmd_gateway/" + m_client_id);
+    }
+
+    m_mqtt_client.unsubscribe("configuration");
+    m_system_configured = true;
+
+    if (m_setup)
+    {
+        send_status("setup done");
+        m_setup = false;
     }
 }
 
@@ -230,6 +227,11 @@ String Communication::get_datetime_string()
     char buff[200];
     strftime(buff, 200, "%Y-%m-%d_%H_%M_%S", local_time);
     return buff;
+}
+
+bool Communication::is_system_configured()
+{
+    return m_system_configured;
 }
 
 String Communication::get_todays_date_string()
@@ -263,16 +265,36 @@ void Communication::send_data(JsonDocument sensor_data)
     {
         String sensor_data_string;
         serializeJson(sensor_data, sensor_data_string);
+        Serial.println(sensor_data_string);
         publish("data", sensor_data_string);
     }
 }
 
 void Communication::send_ml(JsonDocument ml_data)
 {
-    if (!ml_data.isNull())
+    if (m_configuration->getSendMLData() && !ml_data.isNull())
     {
         String ml_data_string;
         serializeJson(ml_data, ml_data_string);
+        Serial.println(ml_data_string);
         publish("ml", ml_data_string);
     }
+}
+
+void Communication::send_status(String payload)
+{
+    JsonDocument status_info;
+
+    auto raw_time = get_rawtime();
+    auto time_struct = localtime(&raw_time);
+    status_info["time_sent"] = raw_time;
+
+    status_info["active_time"] = millis();
+    status_info["device"] = m_client_id;
+    status_info["status"] = payload;
+    status_info["test_name"] = m_configuration->getTestName();
+
+    String msg;
+    serializeJson(status_info, msg);
+    publish("status", msg);
 }

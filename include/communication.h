@@ -9,13 +9,11 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <configurationManager.h>
 #include "time.h"
 #include "MQTT.h"
 #include <utility>
 #include <vector>
-
-// #define NO_MQTT
-// #define OFFLINE
 
 class Communication
 {
@@ -27,6 +25,7 @@ protected:
     int m_mqtt_port = 1883;
     bool m_setup = true;
     bool m_hold_connection = false;
+    bool m_system_configured = false;
     unsigned long m_connection_time = 0;
     MQTTClientCallbackSimple m_callback = nullptr;
 
@@ -75,9 +74,13 @@ public:
     void release_connection();
     void publish(String topic, String payload, bool retain=false);
     void handle_mqtt_loop();
-
+    void initConfig(String config);
+    
     void send_data(JsonDocument sensor_data);
     void send_ml(JsonDocument ml_data);
+    void send_status(String payload);
+
+    bool is_system_configured();
 
     String get_datetime_string();
     String get_todays_date_string();
@@ -85,6 +88,8 @@ public:
     String get_client_id();
     time_t get_rawtime();
     tm *get_localtime();
+
+    std::unique_ptr<ConfigurationManager> m_configuration;
 };
 
 #endif
