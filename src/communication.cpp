@@ -75,10 +75,13 @@ void Communication::pause_communication()
     }
 
     delay(1000);
+    auto dconn_time_a = millis();
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
 
     Serial.println("Communication paused.");
+    auto dconn_time_b = millis();
+    Serial.println("##################### Disconnecting time: " + String(dconn_time_b-dconn_time_a));
 }
 
 void Communication::resume_communication()
@@ -93,6 +96,7 @@ void Communication::resume_communication()
         return;
     }
 
+    auto conn_time_a = millis();
     WiFi.mode(WIFI_STA);
     WiFi.begin(m_wifi_ssid.c_str(), m_wifi_password.c_str());
 
@@ -100,9 +104,10 @@ void Communication::resume_communication()
     Serial.print("Reconnecting WiFi");
     while (WiFi.status() != WL_CONNECTED)
     {
-        delay(1000);
-        Serial.print(".");
+        delay(10);
     }
+    auto conn_time_b = millis();
+    Serial.println("##################### Connecting time: " + String(conn_time_b-conn_time_a));
 
     delay(5000);
 
@@ -197,6 +202,11 @@ void Communication::initConfig(String config)
     if(m_configuration->getRunMachineLearning()){
         m_mqtt_client.subscribe("cmd_gateway/" + m_client_id);
     }
+
+    if(m_configuration->getMLParamsFromGateway()){
+        publish("cmd_mcu", "get_params");
+    }
+    
 
     m_mqtt_client.unsubscribe("configuration");
     m_system_configured = true;
